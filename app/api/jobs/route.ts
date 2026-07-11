@@ -1,10 +1,13 @@
 /**
  * POST /api/jobs
  *
- * Accepts a JSON body with { url: string }.
- * Validates that the URL is a well-formed http or https URL,
- * then echoes it back as JSON with a 201 status.
+ * Accepts { url: string } in the JSON body.
+ * Validates the URL, creates a new job row in status "queued_metadata",
+ * and returns the full job object with a 201 status.
  */
+
+import { createJob } from "@/lib/db";
+
 export async function POST(request: Request) {
   // --- 1. Parse the request body ---
   let body: unknown;
@@ -45,6 +48,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // --- 4. Echo it back (placeholder for future DB insert) ---
-  return Response.json({ url: parsed.href }, { status: 201 });
+  // --- 4. Create the job row ---
+  const id = crypto.randomUUID();
+  const job = createJob(id, parsed.href);
+
+  return Response.json(job, { status: 201 });
 }
