@@ -44,9 +44,9 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center p-8 font-sans">
-      <main className="w-full max-w-lg flex flex-col gap-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Fetchbox</h1>
+    <div className="flex flex-col min-h-screen items-center justify-between p-8 font-sans">
+      <main className="w-full max-w-lg flex flex-col gap-6 my-auto">
+        <h1 className="text-3xl font-semibold tracking-tight mb-2">Fetchbox</h1>
 
         {/* ── URL submission form ── */}
         <form onSubmit={handleSubmit} className="flex gap-3">
@@ -75,7 +75,7 @@ export default function Home() {
 
         {/* ── Error message ── */}
         {error && (
-          <p id="error-message" className="text-sm text-red-600 dark:text-red-400">
+          <p id="error-message" className="text-sm text-red-600 dark:text-red-400 mt-2">
             {error}
           </p>
         )}
@@ -84,13 +84,17 @@ export default function Home() {
         {result && (
           <pre
             id="json-result"
-            className="overflow-x-auto rounded-md bg-zinc-100 p-4 text-sm
+            className="overflow-x-auto rounded-md bg-zinc-100 p-4 text-sm mt-4
                        dark:bg-zinc-800 dark:text-zinc-200"
           >
             {JSON.stringify(result, null, 2)}
           </pre>
         )}
       </main>
+
+      <footer className="w-full text-center py-4 text-sm text-zinc-400 dark:text-zinc-600 mt-8">
+        Michas223
+      </footer>
     </div>
   );
 }
