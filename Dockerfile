@@ -1,12 +1,16 @@
 FROM node:20-slim
 
-# Install C++ build tools (build-essential, python3) for better-sqlite3 native compilation, plus yt-dlp & ffmpeg
+# Install C++ build tools, python3, curl, ffmpeg
 RUN apt-get update && apt-get install -y \
     build-essential \
     python3 \
-    yt-dlp \
+    curl \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# Install latest official yt-dlp binary directly from GitHub releases
+RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+    chmod a+rx /usr/local/bin/yt-dlp
 
 WORKDIR /app
 
