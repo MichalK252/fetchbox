@@ -1,10 +1,11 @@
 FROM node:20-slim
 
-# Install yt-dlp, ffmpeg, and python3 for media extraction & processing
+# Install C++ build tools (build-essential, python3) for better-sqlite3 native compilation, plus yt-dlp & ffmpeg
 RUN apt-get update && apt-get install -y \
+    build-essential \
+    python3 \
     yt-dlp \
     ffmpeg \
-    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
