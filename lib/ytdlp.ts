@@ -64,7 +64,9 @@ interface RawFormat {
 
 interface RawInfo {
   title?: string;
+  playlist_title?: string | null;
   thumbnail?: string | null;
+  thumbnails?: { url: string }[] | null;
   duration?: number | null;
   formats?: RawFormat[];
 }
@@ -201,39 +203,94 @@ export async function checkYtDlpAvailable(): Promise<boolean> {
  */
 export async function fetchMetadata(url: string): Promise<VideoMetadata> {
   const raw = await runYtDlp([
-    "-j",            // single-line JSON dump
+    "-j",            // single-line JSON dump per item
     "--no-playlist", // don't expand playlists
     "--no-warnings", // suppress non-fatal warnings
     url,
   ]);
 
-  let info: RawInfo;
-  try {
-    info = JSON.parse(raw);
-  } catch {
+  const lines = raw
+    .trim()
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    throw new Error("No metadata returned by yt-dlp");
+  }
+
+  const entries: RawInfo[] = [];
+  for (const line of lines) {
+    try {
+      entries.push(JSON.parse(line));
+    } catch {
+      // ignore unparseable lines
+    }
+  }
+
+  if (entries.length === 0) {
     throw new Error("Failed to parse JSON metadata from yt-dlp output");
   }
 
-  // Filter to formats that actually carry a video stream.
-  // yt-dlp sets vcodec to "none" for audio-only streams.
-  const videoFormats: VideoFormat[] = (info.formats ?? [])
-    .filter(
-      (f) => f.vcodec !== "none" && f.vcodec !== undefined && f.vcodec !== null,
-    )
+  const mainEntry = entries[0];
+  const title = mainEntry.playlist_title || mainEntry.title || "(unknown)";
+  const thumbnail = mainEntry.thumbnail || mainEntry.thumbnails?.[0]?.url || null;
+  const duration = mainEntry.duration ?? null;
+
+  const rawFormatsList: RawFormat[] = [];
+  for (const entry of entries) {
+    if (entry.formats && entry.formats.length > 0) {
+      rawFormatsList.push(...entry.formats);
+    } else {
+      rawFormatsList.push(entry as RawFormat);
+    }
+  }
+
+  // Filter formats to video-capable streams:
+  // - vcodec is not "none"
+  // - OR ext is mp4/webm/mkv/mov/avi and vcodec is not explicitly "none"
+  const videoFormats: VideoFormat[] = rawFormatsList
+    .filter((f) => {
+      if (f.vcodec === "none") return false;
+      if (f.vcodec) return true;
+      // If vcodec is missing/null (common in HTML5 media extractors like Erome), check ext
+      const ext = f.ext;
+      return ext && ["mp4", "webm", "mkv", "mov", "avi", "flv"].includes(ext);
+    })
     .map((f) => ({
-      format_id: f.format_id,
-      ext: f.ext,
-      resolution: f.height ? `${f.height}p` : (f.resolution ?? "unknown"),
+      format_id: f.format_id || "best",
+      ext: f.ext || "mp4",
+      resolution: f.height ? `${f.height}p` : (f.resolution ?? "video"),
       height: f.height ?? null,
       filesize: f.filesize ?? f.filesize_approx ?? null,
       vcodec: f.vcodec ?? null,
     }));
 
+  // Deduplicate formats by format_id
+  const uniqueFormats: VideoFormat[] = [];
+  const seenIds = new Set<string>();
+
+  for (const fmt of videoFormats) {
+    if (!seenIds.has(fmt.format_id)) {
+      seenIds.add(fmt.format_id);
+      uniqueFormats.push(fmt);
+    }
+  }
+
   return {
-    title: info.title ?? "(unknown)",
-    thumbnail: info.thumbnail ?? null,
-    duration: info.duration ?? null,
-    formats: videoFormats,
+    title,
+    thumbnail,
+    duration,
+    formats: uniqueFormats.length > 0 ? uniqueFormats : [
+      {
+        format_id: "best",
+        ext: "mp4",
+        resolution: "default",
+        height: null,
+        filesize: null,
+        vcodec: null,
+      }
+    ],
   };
 }
 

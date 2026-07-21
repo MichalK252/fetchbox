@@ -61,12 +61,12 @@ function formatDuration(seconds: number | null): string {
 function statusLabel(status: string): string {
   const labels: Record<string, string> = {
     queued_metadata: "Queued — waiting for metadata…",
-    fetching_metadata: "Fetching metadata…",
-    metadata_ready: "Pick a format to download",
-    queued_download: "Queued — waiting for download…",
-    downloading: "Downloading…",
-    done: "Done!",
-    error: "Error",
+    fetching_metadata: "Fetching video metadata…",
+    metadata_ready: "Choose video quality",
+    queued_download: "Queued for download…",
+    downloading: "Downloading & processing video…",
+    done: "Ready to download!",
+    error: "Failed to process video",
   };
   return labels[status] ?? status;
 }
@@ -197,7 +197,7 @@ export default function Home() {
     }
   }
 
-  // ── Reset to submit another URL ──
+  // ── Reset to submit another URL / Go Home ──
   function handleReset() {
     stopPolling();
     setJob(null);
@@ -205,188 +205,375 @@ export default function Home() {
     setUrl("");
   }
 
+  // Group formats into MP4 vs WEBM categories
+  const sortedFormats = job?.formats
+    ? job.formats.slice().sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
+    : [];
+
+  const mp4Formats = sortedFormats.filter(
+    (f) => (f.ext ?? "").toLowerCase() === "mp4",
+  );
+  const webmFormats = sortedFormats.filter(
+    (f) => (f.ext ?? "").toLowerCase() === "webm",
+  );
+  const otherFormats = sortedFormats.filter((f) => {
+    const ext = (f.ext ?? "").toLowerCase();
+    return ext !== "mp4" && ext !== "webm";
+  });
+
   // ─── Render ───────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col min-h-screen items-center justify-between p-8 font-sans">
-      <main className="w-full max-w-xl flex flex-col gap-6 my-auto">
-        <h1 className="text-3xl font-semibold tracking-tight">Fetchbox</h1>
+    <div className="flex flex-col min-h-screen items-center justify-between p-6 sm:p-10 font-sans bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <main className="w-full max-w-2xl flex flex-col gap-8 my-auto">
+        
+        {/* ── Brand Header (Clean Text) ── */}
+        <header className="flex items-center justify-between">
+          <button
+            onClick={handleReset}
+            className="group text-left outline-none"
+          >
+            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+              Fetchbox
+            </h1>
+          </button>
 
-        {/* ── URL submission form ── */}
+          {/* Go Home Button (Shown when job is active) */}
+          {job && (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all"
+            >
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 00-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                />
+              </svg>
+              Go Home
+            </button>
+          )}
+        </header>
+
+        {/* ── URL Submission Form (White Fetch Button) ── */}
         {!job && (
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <input
-              id="url-input"
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://youtube.com/watch?v=…"
-              required
-              className="flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm
-                         outline-none focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500
-                         dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-            />
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <input
+                id="url-input"
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Paste video URL (YouTube, Erome, etc.)"
+                required
+                className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3.5 text-sm
+                           outline-none transition-all placeholder:text-zinc-400
+                           focus:border-zinc-400 focus:ring-2 focus:ring-zinc-400/20
+                           dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-700"
+              />
+            </div>
+            {/* WHITE FETCH BUTTON */}
             <button
               id="submit-btn"
               type="submit"
               disabled={submitting}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white
-                         transition-colors hover:bg-zinc-700 disabled:opacity-50
-                         dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-zinc-900
+                         border border-zinc-200 shadow-sm transition-all hover:bg-zinc-100
+                         dark:bg-white dark:text-zinc-900 dark:border-zinc-200 dark:hover:bg-zinc-200
+                         active:scale-95 disabled:opacity-50"
             >
-              {submitting ? "Sending…" : "Fetch"}
+              {submitting ? "Processing…" : "Fetch"}
             </button>
           </form>
         )}
 
         {formError && (
-          <p className="text-sm text-red-600 dark:text-red-400">{formError}</p>
+          <div className="rounded-xl bg-red-50 p-4 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400 border border-red-200 dark:border-red-900/50 flex items-center justify-between">
+            <span>{formError}</span>
+            <button
+              onClick={() => setFormError(null)}
+              className="text-xs font-semibold underline hover:no-underline ml-2"
+            >
+              Dismiss
+            </button>
+          </div>
         )}
 
-        {/* ── Job status card ── */}
+        {/* ── Active Job Card ── */}
         {job && (
-          <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            {/* Header: thumbnail + title */}
+          <div className="rounded-2xl border border-zinc-200 bg-white shadow-xl shadow-zinc-200/50 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-none overflow-hidden transition-all">
+            {/* Thumbnail Header */}
             {job.thumbnail && (
-              <img
-                src={job.thumbnail}
-                alt={job.title ?? "Video thumbnail"}
-                className="w-full aspect-video object-cover"
-              />
+              <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">
+                <img
+                  src={job.thumbnail}
+                  alt={job.title ?? "Video thumbnail"}
+                  className="h-full w-full object-cover"
+                />
+                {job.duration !== null && (
+                  <span className="absolute bottom-3 right-3 rounded-md bg-black/75 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
+                    {formatDuration(job.duration)}
+                  </span>
+                )}
+              </div>
             )}
 
-            <div className="p-4 flex flex-col gap-4">
-              {/* Title + duration */}
+            <div className="p-6 flex flex-col gap-6">
+              {/* Title Header */}
               {job.title && (
                 <div>
-                  <h2 className="text-lg font-semibold leading-snug">
+                  <h2 className="text-xl font-bold leading-snug tracking-tight text-zinc-900 dark:text-white">
                     {job.title}
                   </h2>
-                  {job.duration !== null && (
-                    <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                      {formatDuration(job.duration)}
-                    </p>
-                  )}
                 </div>
               )}
 
-              {/* Status badge */}
-              <div className="flex items-center gap-2">
-                {/* Spinner for in-progress states */}
-                {["queued_metadata", "fetching_metadata", "queued_download", "downloading"].includes(
-                  job.status,
-                ) && (
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700 dark:border-zinc-600 dark:border-t-zinc-300" />
-                )}
+              {/* Status Header & Progress */}
+              <div className="flex items-center justify-between py-1 border-b border-zinc-100 dark:border-zinc-800/80 pb-4">
+                <div className="flex items-center gap-2.5">
+                  {["queued_metadata", "fetching_metadata", "queued_download", "downloading"].includes(
+                    job.status,
+                  ) && (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-800 border-t-transparent dark:border-zinc-200 dark:border-t-transparent" />
+                  )}
 
-                {job.status === "done" && (
-                  <span className="text-green-600 dark:text-green-400">✓</span>
-                )}
+                  {job.status === "done" && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                      ✓
+                    </span>
+                  )}
 
-                {job.status === "error" && (
-                  <span className="text-red-600 dark:text-red-400">✗</span>
-                )}
+                  {job.status === "error" && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500/10 text-red-600 dark:text-red-400 font-bold text-xs">
+                      ✕
+                    </span>
+                  )}
 
-                <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {statusLabel(job.status)}
-                </span>
+                  <span className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                    {statusLabel(job.status)}
+                  </span>
+                </div>
+
+                {/* Go Home button header shortcut when selecting resolution */}
+                {job.status === "metadata_ready" && (
+                  <button
+                    onClick={handleReset}
+                    className="text-xs text-zinc-500 dark:text-zinc-400 hover:underline font-medium"
+                  >
+                    ← Fetch another
+                  </button>
+                )}
               </div>
 
-              {/* ── Progress bar (downloading) ── */}
+              {/* ── Downloading Progress Bar ── */}
               {job.status === "downloading" && job.progress !== null && (
-                <div className="w-full">
-                  <div className="h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                <div className="w-full flex flex-col gap-2">
+                  <div className="h-2.5 w-full rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-zinc-800 dark:bg-zinc-200 transition-all duration-300 ease-out"
                       style={{ width: `${Math.min(job.progress, 100)}%` }}
                     />
                   </div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 text-right">
-                    {job.progress.toFixed(1)}%
-                  </p>
-                </div>
-              )}
-
-              {/* ── Error message ── */}
-              {job.status === "error" && job.error_message && (
-                <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 rounded-md p-3">
-                  {job.error_message}
-                </p>
-              )}
-
-              {/* ── Format picker (metadata_ready) ── */}
-              {job.status === "metadata_ready" && job.formats && job.formats.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Available formats:
-                  </p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {job.formats
-                      .slice()
-                      .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
-                      .map((f) => (
-                        <button
-                          key={f.format_id}
-                          onClick={() => handleSelectFormat(f.format_id)}
-                          className="flex flex-col items-center gap-0.5 rounded-md border border-zinc-200
-                                     px-3 py-2 text-sm transition-colors hover:bg-zinc-100
-                                     dark:border-zinc-700 dark:hover:bg-zinc-800"
-                        >
-                          <span className="font-medium">{f.resolution}</span>
-                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {f.ext.toUpperCase()}
-                            {f.vcodec ? ` (${formatCodecName(f.vcodec)})` : ""}
-                            {f.filesize ? ` · ${formatBytes(f.filesize)}` : ""}
-                          </span>
-                        </button>
-                      ))}
+                  <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                    <span>Downloading format {job.selected_format}</span>
+                    <span>{job.progress.toFixed(1)}%</span>
                   </div>
                 </div>
               )}
 
-              {/* ── Download link (done) ── */}
-              {job.status === "done" && (
-                <a
-                  href={`/api/jobs/${job.id}/download`}
-                  download={job.file_name ?? true}
-                  className="flex h-10 items-center justify-center gap-2 rounded-md
-                             bg-zinc-900 px-4 text-sm font-medium text-white
-                             transition-colors hover:bg-zinc-700
-                             dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3"
-                    />
-                  </svg>
-                  Download {job.file_name ?? "file"}
-                </a>
+              {/* ── Error Display ── */}
+              {job.status === "error" && job.error_message && (
+                <div className="rounded-xl bg-red-50 dark:bg-red-950/40 p-4 border border-red-200 dark:border-red-900/50">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {job.error_message}
+                  </p>
+                </div>
               )}
 
-              {/* ── Start over button ── */}
-              {(job.status === "done" || job.status === "error") && (
-                <button
-                  onClick={handleReset}
-                  className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400
-                             dark:hover:text-zinc-200 transition-colors"
-                >
-                  ← Fetch another video
-                </button>
+              {/* ── Categorized Format Selector (MP4 Recommended vs WEBM) ── */}
+              {job.status === "metadata_ready" && (
+                <div className="flex flex-col gap-6">
+
+                  {/* MP4 Formats Category (Recommended) */}
+                  {mp4Formats.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+                          MP4 Videos (Recommended)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {mp4Formats.map((f) => (
+                          <button
+                            key={f.format_id}
+                            onClick={() => handleSelectFormat(f.format_id)}
+                            className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 text-left transition-all hover:border-zinc-400 dark:hover:border-zinc-600 group outline-none"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-bold text-base text-zinc-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                {f.resolution} MP4
+                              </span>
+                              {f.vcodec && (
+                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                  {formatCodecName(f.vcodec)}
+                                </span>
+                              )}
+                            </div>
+
+                            {f.filesize && (
+                              <span className="text-xs font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                                {formatBytes(f.filesize)}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WEBM Formats Category */}
+                  {webmFormats.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+                          WEBM Videos
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {webmFormats.map((f) => (
+                          <button
+                            key={f.format_id}
+                            onClick={() => handleSelectFormat(f.format_id)}
+                            className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 text-left transition-all hover:border-zinc-400 dark:hover:border-zinc-600 group outline-none"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-bold text-base text-zinc-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                {f.resolution} WEBM
+                              </span>
+                              {f.vcodec && (
+                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                  {formatCodecName(f.vcodec)}
+                                </span>
+                              )}
+                            </div>
+
+                            {f.filesize && (
+                              <span className="text-xs font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                                {formatBytes(f.filesize)}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Other Formats Category */}
+                  {otherFormats.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold tracking-wider uppercase text-zinc-400 dark:text-zinc-500">
+                          Other Options
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {otherFormats.map((f) => (
+                          <button
+                            key={f.format_id}
+                            onClick={() => handleSelectFormat(f.format_id)}
+                            className="flex items-center justify-between rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 text-left transition-all hover:border-zinc-400 dark:hover:border-zinc-600 group outline-none"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="font-bold text-base text-zinc-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                {f.resolution} {f.ext ? f.ext.toUpperCase() : ""}
+                              </span>
+                              {f.vcodec && (
+                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">
+                                  {formatCodecName(f.vcodec)}
+                                </span>
+                              )}
+                            </div>
+
+                            {f.filesize && (
+                              <span className="text-xs font-mono font-medium text-zinc-500 dark:text-zinc-400">
+                                {formatBytes(f.filesize)}
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* ── Ready Download Link (done) ── */}
+              {job.status === "done" && (
+                <div className="flex flex-col gap-3">
+                  <a
+                    href={`/api/jobs/${job.id}/download`}
+                    download={job.file_name ?? true}
+                    className="flex h-12 items-center justify-center gap-2.5 rounded-xl
+                               bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 px-5 text-sm font-semibold
+                               shadow-lg transition-all hover:opacity-90 active:scale-98"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2.5}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3"
+                      />
+                    </svg>
+                    Download {job.file_name ?? "Video File"}
+                  </a>
+                </div>
+              )}
+
+              {/* ── Start Over / Go Home button at card bottom ── */}
+              {(job.status === "done" || job.status === "error" || job.status === "metadata_ready") && (
+                <div className="pt-2 flex justify-center border-t border-zinc-100 dark:border-zinc-800/60">
+                  <button
+                    onClick={handleReset}
+                    className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white transition-colors flex items-center gap-1.5 py-1.5 px-3.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  >
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                      />
+                    </svg>
+                    Fetch another video
+                  </button>
+                </div>
               )}
             </div>
           </div>
         )}
       </main>
 
-      <footer className="w-full text-center py-4 text-sm text-zinc-400 dark:text-zinc-600 mt-8">
+      {/* ── Footer ── */}
+      <footer className="w-full text-center py-4 text-xs font-medium text-zinc-400 dark:text-zinc-600 mt-10">
         Michas223
       </footer>
     </div>
