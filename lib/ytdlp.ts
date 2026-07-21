@@ -12,6 +12,9 @@
  */
 
 import { spawn } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import ffmpegPath from "ffmpeg-static";
 
 // ─── Public types ───────────────────────────────────────────────────
 
@@ -24,6 +27,16 @@ export interface VideoFormat {
   filesize: number | null;
   /** Original vcodec string, e.g. "avc1.64001F" or "vp9". */
   vcodec: string | null;
+}
+
+/** Human-readable codec name, e.g. "H.264", "AV1", "VP9". */
+export function formatCodecName(vcodec: string | null): string {
+  if (!vcodec) return "";
+  if (vcodec.startsWith("avc1")) return "H.264";
+  if (vcodec.startsWith("av01")) return "AV1";
+  if (vcodec.startsWith("vp9") || vcodec.startsWith("vp09")) return "VP9";
+  if (vcodec.startsWith("vp8") || vcodec.startsWith("vp08")) return "VP8";
+  return vcodec.split(".")[0];
 }
 
 /** The metadata object returned by fetchMetadata(). */
@@ -72,7 +85,12 @@ function runYtDlp(
   onStdoutLine?: (line: string) => void,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("yt-dlp", args);
+    const child = spawn("yt-dlp", args, {
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: "utf-8",
+      },
+    });
 
     let stdout = "";
     let stderr = "";
@@ -263,19 +281,33 @@ export async function downloadFormat(
 
   // We'll also use --print after_move:filepath to reliably get the
   // final path after any post-processing moves/merges.
-  let finalPath = "";
+  let candidatePath = "";
+
+  const formatSpec = formatId.includes("+")
+    ? formatId
+    : `${formatId}+bestaudio/best`;
+
+  const args = [
+    "-f",
+    formatSpec,
+    "-o",
+    outputTemplate,
+    "--merge-output-format", "mp4",
+    "--remux-video", "mp4",
+    "--newline",       // one progress line per update
+    "--no-playlist",
+    "--progress",      // force progress reporting alongside --print
+    "--print", "after_move:filepath",  // print final path after post-processing
+  ];
+
+  if (ffmpegPath) {
+    args.push("--ffmpeg-location", ffmpegPath);
+  }
+
+  args.push(url);
 
   const output = await runYtDlp(
-    [
-      "-f",
-      formatId,
-      "-o",
-      outputTemplate,
-      "--newline",       // one progress line per update (not \r overwrites)
-      "--no-playlist",
-      "--print", "after_move:filepath",  // print final path after post-processing
-      url,
-    ],
+    args,
     (line) => {
       // ── Parse progress updates ──
       const progressMatch = line.match(progressRe);
@@ -287,37 +319,41 @@ export async function downloadFormat(
         return;
       }
 
-      // ── Capture the final file path ──
-      // The --print after_move:filepath line comes last, after all
-      // [download] lines.  It's a bare path with no prefix.
-      // But we also check Destination / already-downloaded as fallbacks.
-      const destMatch = line.match(destinationRe);
+      // ── Capture potential file path ──
+      const trimmed = line.trim();
+      const destMatch = trimmed.match(destinationRe);
+      const alreadyMatch = trimmed.match(alreadyRe);
+
       if (destMatch) {
-        finalPath = destMatch[1].trim();
-        return;
-      }
-
-      const alreadyMatch = line.match(alreadyRe);
-      if (alreadyMatch) {
-        finalPath = alreadyMatch[1].trim();
-        return;
-      }
-
-      // Lines that don't match any known prefix could be the
-      // --print after_move:filepath output (a bare filepath).
-      // We overwrite finalPath because it's the most reliable source.
-      if (!line.startsWith("[") && line.trim().length > 0) {
-        finalPath = line.trim();
+        candidatePath = destMatch[1].trim();
+      } else if (alreadyMatch) {
+        candidatePath = alreadyMatch[1].trim();
+      } else if (trimmed.length > 0 && !trimmed.startsWith("[")) {
+        candidatePath = trimmed;
       }
     },
   );
 
-  // If we somehow didn't capture a path from the line callbacks,
-  // fall back to scanning the full output.
+  // ── Find the actual file path that exists on disk ──
+  let finalPath = "";
+
+  if (candidatePath && fs.existsSync(candidatePath)) {
+    finalPath = candidatePath;
+  } else {
+    // Scan all non-empty stdout lines in reverse to find the one that exists on disk
+    const lines = output.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (fs.existsSync(lines[i])) {
+        finalPath = lines[i];
+        break;
+      }
+    }
+  }
+
+  // Fallback if file check fails
   if (!finalPath) {
-    // Last non-empty line of stdout (from --print after_move:filepath)
-    const lines = output.trim().split("\n");
-    finalPath = lines[lines.length - 1]?.trim() ?? "";
+    const lines = output.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+    finalPath = candidatePath || lines[lines.length - 1] || "";
   }
 
   return finalPath;

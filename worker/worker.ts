@@ -45,7 +45,7 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1_000; // 5 minutes
 const STALE_JOB_AGE_MS = 60 * 60 * 1_000; // 1 hour
 
 /** Where downloads are saved, relative to the project root. */
-const DOWNLOADS_DIR = path.resolve(import.meta.dirname, "..", "data", "downloads");
+const DOWNLOADS_DIR = path.join(process.cwd(), "data", "downloads");
 
 // ─── Startup check ──────────────────────────────────────────────────
 

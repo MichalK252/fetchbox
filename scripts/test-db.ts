@@ -84,7 +84,7 @@ closeDb();
 // Remove the test database file
 import fs from "node:fs";
 import path from "node:path";
-const dbPath = path.resolve(import.meta.dirname, "..", "data", "fetchbox.db");
+const dbPath = path.join(process.cwd(), "data", "fetchbox.db");
 if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
 // Also remove WAL/SHM files if present
 for (const suffix of ["-wal", "-shm"]) {

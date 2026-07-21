@@ -75,8 +75,7 @@ function getDb(): Database.Database {
 
   // Resolve the data directory relative to the project root.
   // __dirname in ESM context points to lib/, so go one level up.
-  const projectRoot = path.resolve(import.meta.dirname, "..");
-  const dataDir = path.join(projectRoot, "data");
+  const dataDir = path.join(process.cwd(), "data");
 
   // Create data/ if it doesn't exist
   if (!fs.existsSync(dataDir)) {

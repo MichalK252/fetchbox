@@ -38,6 +38,15 @@ function formatBytes(bytes: number | null): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+function formatCodecName(vcodec: string | null): string {
+  if (!vcodec) return "";
+  if (vcodec.startsWith("avc1")) return "H.264";
+  if (vcodec.startsWith("av01")) return "AV1";
+  if (vcodec.startsWith("vp9") || vcodec.startsWith("vp09")) return "VP9";
+  if (vcodec.startsWith("vp8") || vcodec.startsWith("vp08")) return "VP8";
+  return vcodec.split(".")[0];
+}
+
 function formatDuration(seconds: number | null): string {
   if (seconds === null) return "";
   const h = Math.floor(seconds / 3600);
@@ -130,7 +139,13 @@ export default function Home() {
         body: JSON.stringify({ url }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setFormError(`Server error (${res.status})`);
+        return;
+      }
 
       if (!res.ok) {
         setFormError(data.error ?? `Request failed (${res.status})`);
@@ -158,7 +173,15 @@ export default function Home() {
         body: JSON.stringify({ formatId }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        setJob((prev) =>
+          prev ? { ...prev, status: "error", error_message: `Server error (${res.status})` } : prev,
+        );
+        return;
+      }
 
       if (!res.ok) {
         setJob((prev) =>
@@ -312,6 +335,7 @@ export default function Home() {
                           <span className="font-medium">{f.resolution}</span>
                           <span className="text-xs text-zinc-500 dark:text-zinc-400">
                             {f.ext.toUpperCase()}
+                            {f.vcodec ? ` (${formatCodecName(f.vcodec)})` : ""}
                             {f.filesize ? ` · ${formatBytes(f.filesize)}` : ""}
                           </span>
                         </button>
