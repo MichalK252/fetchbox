@@ -19,9 +19,12 @@
  */
 
 import path from "node:path";
+import fs from "node:fs";
 import {
   claimNextJob,
   updateJob,
+  listStaleJobs,
+  deleteJob,
   type JobRow,
 } from "../lib/db";
 import {
@@ -34,6 +37,12 @@ import {
 
 /** How often we poll the queue (milliseconds). */
 const POLL_INTERVAL_MS = 1_500;
+
+/** How often we run the cleanup routine (milliseconds). */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1_000; // 5 minutes
+
+/** Jobs older than this are cleaned up (milliseconds). */
+const STALE_JOB_AGE_MS = 60 * 60 * 1_000; // 1 hour
 
 /** Where downloads are saved, relative to the project root. */
 const DOWNLOADS_DIR = path.resolve(import.meta.dirname, "..", "data", "downloads");
@@ -160,12 +169,49 @@ async function tick(): Promise<void> {
   }
 }
 
+// ─── Cleanup routine ────────────────────────────────────────────────
+
+/**
+ * Find done/error jobs older than STALE_JOB_AGE_MS, delete their
+ * downloaded files from disk, and remove the job rows from the DB.
+ *
+ * Runs on a separate, slower interval (every 5 minutes).
+ */
+function cleanupStaleJobs(): void {
+  const stale = listStaleJobs(STALE_JOB_AGE_MS);
+  if (stale.length === 0) return;
+
+  console.log(`[cleanup] Found ${stale.length} stale job(s)`);
+
+  for (const job of stale) {
+    // Delete the file from disk if it exists
+    if (job.file_path) {
+      try {
+        fs.unlinkSync(job.file_path);
+        console.log(`[cleanup] Deleted file: ${job.file_path}`);
+      } catch (err) {
+        // File may already be gone — that's fine
+        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+          console.error(`[cleanup] Failed to delete ${job.file_path}:`, err);
+        }
+      }
+    }
+
+    // Delete the job row
+    deleteJob(job.id);
+    console.log(`[cleanup] Removed job ${job.id} (${job.status}, "${job.title ?? "untitled"}"`);
+  }
+}
+
+// ─── Main ───────────────────────────────────────────────────────────
+
 async function main(): Promise<void> {
   console.log("Fetchbox Worker starting…");
 
   await ensureYtDlp();
   console.log("yt-dlp ✓");
-  console.log(`Polling every ${POLL_INTERVAL_MS}ms\n`);
+  console.log(`Polling every ${POLL_INTERVAL_MS}ms`);
+  console.log(`Cleanup every ${CLEANUP_INTERVAL_MS / 1000}s (stale after ${STALE_JOB_AGE_MS / 1000}s)\n`);
 
   // Run the first tick immediately, then set up the interval.
   await tick();
@@ -181,6 +227,17 @@ async function main(): Promise<void> {
       console.error("[worker] Unexpected error in tick:", err);
     }
   }, POLL_INTERVAL_MS);
+
+  // Run cleanup on a separate, slower interval.
+  // Fire once at startup, then every CLEANUP_INTERVAL_MS.
+  cleanupStaleJobs();
+  setInterval(() => {
+    try {
+      cleanupStaleJobs();
+    } catch (err) {
+      console.error("[cleanup] Unexpected error:", err);
+    }
+  }, CLEANUP_INTERVAL_MS);
 }
 
 main();

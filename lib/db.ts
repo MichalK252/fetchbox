@@ -243,6 +243,51 @@ export function claimNextJob(
 }
 
 /**
+ * Find jobs in a terminal state (done or error) whose updated_at
+ * is older than `olderThanMs` milliseconds ago.
+ *
+ * Used by the cleanup routine to remove expired jobs and their
+ * downloaded files from disk.
+ *
+ * @param olderThanMs  Age threshold in milliseconds (e.g. 3_600_000 = 1 hour)
+ * @returns            Array of stale job rows
+ */
+export function listStaleJobs(olderThanMs: number): JobRow[] {
+  const db = getDb();
+
+  // SQLite's datetime() returns UTC strings in "YYYY-MM-DD HH:MM:SS" format.
+  // We compute the cutoff as a UTC datetime string and compare directly.
+  // datetime('now', '-3600 seconds') gives us "1 hour ago".
+  const cutoffSeconds = Math.floor(olderThanMs / 1000);
+
+  const stmt = db.prepare(`
+    SELECT * FROM jobs
+    WHERE status IN ('done', 'error')
+      AND updated_at <= datetime('now', '-' || ? || ' seconds')
+    ORDER BY updated_at ASC
+  `);
+
+  return stmt.all(cutoffSeconds) as JobRow[];
+}
+
+/**
+ * Permanently delete a job row from the database.
+ *
+ * Note: this does NOT delete any files on disk — the caller is
+ * responsible for cleaning up the downloaded file before calling
+ * this function.
+ *
+ * @param id  The job id to delete
+ * @returns   true if a row was deleted, false if the id wasn't found
+ */
+export function deleteJob(id: string): boolean {
+  const db = getDb();
+  const stmt = db.prepare("DELETE FROM jobs WHERE id = ?");
+  const result = stmt.run(id);
+  return result.changes > 0;
+}
+
+/**
  * Close the database connection.  Useful for clean shutdown in tests
  * or scripts.  After calling this, the next database operation will
  * re-open the connection.
