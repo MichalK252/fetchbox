@@ -2,13 +2,13 @@
 
 Fetchbox is a fast, minimal, and clean media downloader built with Next.js 16 (App Router), TypeScript, SQLite, `yt-dlp`, and `ffmpeg`.
 
-It allows users to paste video links from YouTube, Erome, and 1,000+ supported platforms, select resolution and format options (MP4, WEBM, H.264, AV1, VP9), track real-time download progress, and stream finished video files directly.
+It allows users to paste video links from YouTube, TikTok, Vimeo, and 1,000+ supported platforms, select resolution and format options (MP4, WEBM, H.264, AV1, VP9), track real-time download progress, and stream finished video files directly.
 
 ---
 
 ## Features
 
-- **Multi-Platform Support**: Download videos from YouTube, Erome, Reddit, Twitter, and any site supported by `yt-dlp`.
+- **Multi-Platform Support**: Download videos from YouTube, TikTok, Reddit, Twitter, and any site supported by `yt-dlp`.
 - **Categorized Format Selection**: High Definition (HD) and Standard Definition (SD) options grouped into MP4 and WEBM streams with codec tags (H.264, AV1, VP9).
 - **Automatic Audio & Video Merging**: Uses `ffmpeg` to combine high-definition video and audio streams into standard `.mp4` containers.
 - **Real-Time Progress Tracking**: Background polling reports download percentage directly on the UI.

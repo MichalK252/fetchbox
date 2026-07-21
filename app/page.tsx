@@ -271,7 +271,7 @@ export default function Home() {
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="Paste video URL (YouTube, Erome, etc.)"
+                placeholder="Paste video URL..."
                 required
                 className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3.5 text-sm
                            outline-none transition-all placeholder:text-zinc-400
