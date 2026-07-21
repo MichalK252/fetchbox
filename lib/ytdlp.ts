@@ -206,6 +206,7 @@ export async function fetchMetadata(url: string): Promise<VideoMetadata> {
     "-j",            // single-line JSON dump per item
     "--no-playlist", // don't expand playlists
     "--no-warnings", // suppress non-fatal warnings
+    "--js-runtimes", "node", // solve YouTube JS n-challenge using node
     "--extractor-args", "youtube:player_client=android,web", // bypass cloud IP bot checks
     url,
   ]);
@@ -355,6 +356,7 @@ export async function downloadFormat(
     "--newline",       // one progress line per update
     "--no-playlist",
     "--progress",      // force progress reporting alongside --print
+    "--js-runtimes", "node", // solve YouTube JS n-challenge using node
     "--extractor-args", "youtube:player_client=android,web", // bypass cloud IP bot checks
     "--print", "after_move:filepath",  // print final path after post-processing
   ];
